@@ -1,0 +1,45 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+import AboutMe from '../components/AboutMe.astro';
+import Header from '../components/Header.astro';
+import Projects from '../components/Projects.astro';
+import Tools from '../components/Tools.astro';
+import Footer from '../components/Footer.astro';
+import SectionContainer from '../components/SectionContainer.astro';
+import TitleSection from '../components/TitleSection.astro';
+import Career from '../components/Career.astro';
+import Briefcase from '../components/icons/Briefcase.astro';
+import CodeIcon from '../components/icons/Code.astro';
+---
+
+<Layout
+	title="Hazielgmz"
+	description="Contactame para crear tu proyecto web o móvil"
+	>
+	<main class="px-4">
+    <SectionContainer class="py-16 md:py-16">
+      <AboutMe>
+        <slot>
+      </AboutMe >
+    </SectionContainer>
+    <div class="space-y-24 md:space-y-36 mt-24 pt-6">
+    <SectionContainer id="career">
+      <TitleSection>
+        <Briefcase class="size-8" />
+        Experiencia
+      </TitleSection>
+      <Career />
+    </SectionContainer>
+
+    <SectionContainer id="Projects">
+      <TitleSection>
+        <CodeIcon class="size-7" />
+        Proyectos
+      </TitleSection>
+      <Projects />
+    </SectionContainer>
+
+
+  </main>
+</Layout>

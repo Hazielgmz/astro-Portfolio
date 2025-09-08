@@ -1,0 +1,35 @@
+---
+import astroLogo from '../assets/astro.svg';
+import background from '../assets/background.svg';
+import { supabase } from "../db/supabase"
+
+const { data: aboutMe, error } = await supabase
+  .from("about_me")  // tu tabla
+  .select("*")
+  .single() // si solo quieres un registro
+---
+{error ? (
+  <p class="text-center text-red-500 dark:text-red-400 mt-24 pt-6">Error al cargar: {error.message}</p>
+) : (
+  <article class="flex flex-col items-center justify-center gap-8 text-gray-700 dark:text-gray-300 md:flex-row mt-24 pt-6">
+    <div class="[&>p]:mb-4 [&>p>strong]:text-yellow-500 dark:[&>p>strong]:text-yellow-100 [&>p>strong]:font-normal [&>p>strong]:font-mono text-pretty order-2 md:order-1">
+      <h1 class="text-4xl font-bold tracking-tight text-gray-800 sm:text-5xl dark:text-white mb-6">
+        {aboutMe.name}
+      </h1>
+      
+      {aboutMe.bio && aboutMe.bio.split('\n').map((paragraph: string) => (
+        <p set:html={paragraph.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')} />
+      ))}
+    </div>
+
+    <img 
+      width="200" 
+      height="200" 
+      src={aboutMe.profile_image} 
+      alt="Foto de perfil" 
+      class="order-1 object-cover w-64 h-full p-1 md:order-2 rotate-3 lg:p-2 lg:w-64 aspect-square rounded-2xl bg-black/20 dark:bg-yellow-500/5 ring-1 ring-black/70 dark:ring-white/20" 
+      style="object-position: 50% 50%"
+    />
+  </article>
+)
+

@@ -1,0 +1,137 @@
+---
+import GitHub from "./icons/GitHub.astro"
+import Link from "./icons/Link.astro"
+import LinkButton from "./LinkButton.astro"
+import { supabase } from "../db/supabase"
+
+// Obtener proyectos visibles de Supabase
+const { data: projects, error: projectsError } = await supabase
+  .from("projects")
+  .select("*")
+  .eq('visible', true)
+  .order('created_at', { ascending: false });
+
+// Obtener las relaciones entre proyectos y herramientas
+const { data: projectTools, error: relationError } = projects && projects.length > 0
+  ? await supabase
+      .from("project_tool")
+      .select("project_id, tool_id")
+      .in('project_id', projects.map(p => p.id))
+  : { data: [], error: null };
+
+// Obtener todas las herramientas visibles
+const { data: tools, error: toolsError } = await supabase
+  .from("tools")
+  .select("*")
+  .eq('visible', true);
+
+// Función para obtener las herramientas de un proyecto
+function getProjectTools(projectId: number) {
+  if (!projectTools || !tools) return [];
+  
+  // Encontrar las relaciones del proyecto
+  const relations = projectTools.filter(pt => pt.project_id === projectId);
+  
+  // Mapear las relaciones a las herramientas completas
+  return relations.map(relation => {
+    const tool = tools.find(t => t.id === relation.tool_id);
+    if (tool) {
+      return {
+        id: tool.id,
+        name: tool.name,
+        type: tool.type || 'default',
+        icon: tool.icon
+      };
+    }
+    return null;
+  }).filter(Boolean) as {id: number, name: string, type: string, icon: string | null}[]; // Eliminar nulos y tipar correctamente
+}
+
+// Determinar la clase de color según el tipo de herramienta
+function getToolClass(toolType: string) {
+  switch(toolType) {
+    case 'frontend':
+      return 'bg-blue-600 text-white';
+    case 'backend':
+      return 'bg-green-600 text-white';
+    case 'database':
+      return 'bg-yellow-600 text-black';
+    case 'framework':
+      return 'bg-purple-600 text-white';
+    default:
+      return 'bg-gray-600 text-white';
+  }
+}
+
+const error = projectsError || relationError || toolsError;
+---
+
+{error ? (
+  <p class="text-center text-red-500 dark:text-red-400 mt-8">Error al cargar proyectos: {error.message}</p>
+) : (
+  <div class="flex flex-col gap-y-16 mt-16">
+    {projects && projects.length > 0 ? (
+      projects.map((project) => {
+        const projectToolsList = getProjectTools(project.id);
+        return (
+          <article class="flex flex-col space-x-0 space-y-8 group md:flex-row md:space-x-8 md:space-y-0">
+            <div class="w-full md:w-1/2">
+              <div class="relative flex flex-col items-center col-span-6 row-span-5 gap-8 transition duration-500 ease-in-out transform shadow-xl overflow-clip rounded-xl sm:rounded-xl md:group-hover:-translate-y-1 md:group-hover:shadow-2xl lg:border lg:border-gray-800 lg:hover:border-gray-700 lg:hover:bg-gray-800/50">
+                <img 
+                  alt={project.title} 
+                  class="object-cover object-top w-full h-56 transition duration-500 sm:h-full md:scale-110 md:group-hover:scale-105" 
+                  loading="lazy" 
+                  src={project.image || "/placeholder-project.webp"} 
+                />
+              </div>
+            </div>
+
+            <div class="w-full md:w-1/2 md:max-w-lg">
+              <h3 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                {project.title}
+              </h3>
+              <div class="flex flex-wrap mt-2">
+                <ul class="flex flex-row flex-wrap mb-2 gap-x-2 gap-y-2">
+                  {projectToolsList.map((tool) => (
+                    <li>
+                      <span class={`flex gap-x-2 rounded-full text-xs ${getToolClass(tool.type)} py-1 px-2 items-center`}>
+                        {tool.icon && (
+                          <img 
+                            src={tool.icon} 
+                            alt={`${tool.name} icon`}
+                            class="w-4 h-4"
+                          />
+                        )}
+                        {tool.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div class="mt-2 text-gray-700 dark:text-gray-400">{project.description}</div>
+                <footer class="flex items-end justify-start mt-4 gap-x-4">
+                  {project.codeLink && (
+                    <LinkButton href={project.codeLink}>
+                      <GitHub class="size-6" />
+                      Code
+                    </LinkButton>
+                  )}
+                  {project.PreviewLink && (
+                    <LinkButton href={project.PreviewLink}>
+                      <Link class="size-4" />
+                      Preview
+                    </LinkButton>
+                  )}
+                </footer>
+              </div>
+            </div>
+          </article>
+        );
+      })
+    ) : (
+      <p class="text-center text-gray-600 dark:text-gray-400">No hay proyectos disponibles.</p>
+    )}
+  </div>
+)}
+
+

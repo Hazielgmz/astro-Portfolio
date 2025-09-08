@@ -1,0 +1,29 @@
+---
+import ExperienceItem from "./CareerItem.astro"
+import { supabase } from "../db/supabase"
+
+// Obtener todas las experiencias laborales desde Supabase
+const { data: careers, error } = await supabase
+  .from("careers")
+  .select("*")
+  .order('period', { ascending: false }) // Ordenar por período, del más reciente al más antiguo
+  .eq('visible', true) // Solo obtener las que están marcadas como visibles
+---
+
+{error ? (
+  <p class="text-center text-red-500 dark:text-red-400">Error al cargar experiencia laboral: {error.message}</p>
+) : (
+  <ol class="relative mt-16">
+    {
+      careers && careers.length > 0 ? (
+        careers.map((career) => (
+          <li class="">
+            <ExperienceItem {...career} />
+          </li>
+        ))
+      ) : (
+        <p class="text-center text-gray-600 dark:text-gray-400">No hay experiencia laboral disponible.</p>
+      )
+    }
+  </ol>
+)}
