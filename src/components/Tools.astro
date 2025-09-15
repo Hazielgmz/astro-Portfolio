@@ -14,6 +14,40 @@ async function fetchToolsByType(type: string) {
   return data || [];
 }
 
+// Función para obtener certificados relacionados con una herramienta
+async function fetchToolCertificates(toolId: number) {
+  const { data, error } = await supabase
+    .from("certificate_tool")
+    .select(`
+      certificate_id,
+      certificates:certificate_id (
+        id, title, issuer, type, date, certificate_url, visible
+      )
+    `)
+    .eq("tool_id", toolId)
+    .filter("certificates.visible", "eq", true);
+
+  if (error) console.error(`Error fetching certificates for tool ${toolId}:`, error);
+  return data?.map(item => item.certificates).filter(Boolean) || [];
+}
+
+// Función para obtener proyectos relacionados con una herramienta
+async function fetchToolProjects(toolId: number) {
+  const { data, error } = await supabase
+    .from("project_tool")
+    .select(`
+      project_id,
+      projects:project_id (
+        id, title, description, codeLink, PreviewLink, image, visible
+      )
+    `)
+    .eq("tool_id", toolId)
+    .filter("projects.visible", "eq", true);
+
+  if (error) console.error(`Error fetching projects for tool ${toolId}:`, error);
+  return data?.map(item => item.projects).filter(Boolean) || [];
+}
+
 // Cargar categorías en paralelo
 const categories = [
   { type: "Frontend", title: "Frontend" },
@@ -31,24 +65,72 @@ const sections = categories.map((c, i) => ({
   ...c,
   tools: results[i]
 }));
+
+// Obtener datos relacionados para cada herramienta
+const toolsWithRelations = await Promise.all(
+  sections.flatMap(section => 
+    section.tools.map(async tool => ({
+      ...tool,
+      certificates: await fetchToolCertificates(tool.id),
+      projects: await fetchToolProjects(tool.id),
+      hasRelatedContent: false // Se actualizará a true si tiene certificados o proyectos
+    }))
+  )
+);
+
+// Actualizar las herramientas en sections con la información de relaciones
+toolsWithRelations.forEach(toolWithRelations => {
+  const hasContent = 
+    (toolWithRelations.certificates && toolWithRelations.certificates.length > 0) ||
+    (toolWithRelations.projects && toolWithRelations.projects.length > 0);
+  
+  toolWithRelations.hasRelatedContent = hasContent;
+  
+  sections.forEach(section => {
+    const toolIndex = section.tools.findIndex(t => t.id === toolWithRelations.id);
+    if (toolIndex !== -1) {
+      section.tools[toolIndex] = toolWithRelations;
+    }
+  });
+});
 ---
+<div x-data="{
+  selectedTool: null,
+  modalOpen: false,
+  openModal(tool) {
+    this.selectedTool = tool;
+    this.modalOpen = true;
+  },
+  closeModal() {
+    this.modalOpen = false;
+    setTimeout(() => this.selectedTool = null, 300);
+  }
+}">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-15">
     {sections.map(({ title, tools }) => (
-      <div class="mb-0">
-        <span class="text-xl font-bold mb-6 ">{title}</span>
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold mb-6">{title}</h2>
 
       {tools.length > 0 ? (
         <div class="flex overflow-x-auto snap-x scroll-smooth scroll-pl-6 gap-8 pb-4 custom-scrollbar">
           {tools.map(tool => (
             <div class="flex-none snap-start">
-              <div class="flex flex-col items-center space-y-3 min-w-[65px]">
-                <div class="w-16 h-16 flex items-center justify-center">
+              <div 
+                class={`flex flex-col items-center space-y-3 min-w-[65px] ${
+                  tool.hasRelatedContent ? 'cursor-pointer transition hover:scale-110' : ''
+                }`}
+                x-on:click={tool.hasRelatedContent ? `openModal(${JSON.stringify(tool)})` : null}
+              >
+                <div class="w-16 h-16 flex items-center justify-center relative">
                   {tool.icon ? (
                     <img src={tool.icon} alt={`${tool.name} icon`} class="w-12 h-12" />
                   ) : (
                     <svg viewBox="0 0 24 24" class="w-12 h-12">
                       <path fill="currentColor" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                     </svg>
+                  )}
+                  {tool.hasRelatedContent && (
+                    <span class="absolute -top-5 -right-0 w-2 h-2 bg-[#fdc700] rounded-full shadow animate-pulse"></span>
                   )}
                 </div>
                 <h3>{tool.name}</h3>
@@ -61,8 +143,157 @@ const sections = categories.map((c, i) => ({
       )}
       </div>
     ))}
+  </div>
 
-  <style>
+  <!-- Modal -->
+  <div 
+    x-show="modalOpen" 
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+    x-cloak
+  >
+    <div 
+      x-show="modalOpen" 
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 transform scale-95"
+      x-transition:enter-end="opacity-100 transform scale-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100 transform scale-100"
+      x-transition:leave-end="opacity-0 transform scale-95"
+      @click.away="closeModal()"
+      class="w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl"
+      x-cloak
+    >
+      <!-- Modal header -->
+      <div class="flex items-center justify-between p-4 md:p-5 border-b border-gray-200 dark:border-gray-700">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-3">
+          <img x-bind:src="selectedTool?.icon" x-bind:alt="selectedTool?.name" class="w-8 h-8" />
+          <span x-text="selectedTool?.name"></span>
+        </h3>
+        <button type="button" @click="closeModal()" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+          <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+          </svg>
+          <span class="sr-only">Close modal</span>
+        </button>
+      </div>
+
+      <!-- Modal body -->
+      <div class="p-4 md:p-5 space-y-4">
+        <!-- Certificados -->
+        <template x-if="selectedTool?.certificates?.length > 0">
+          <div>
+            <h4 class="text-lg font-semibold text-[#fdc700] mb-3">Certificaciones</h4>
+            <div class="space-y-3">
+              <template x-for="cert in selectedTool?.certificates" :key="cert.id">
+                <a 
+                  x-bind:href="cert.certificate_url" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="block p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div class="flex justify-between items-center">
+                    <h5 class="font-medium text-gray-900 dark:text-white" x-text="cert.title"></h5>
+                    <span class="text-sm text-gray-500 dark:text-gray-400" x-text="new Date(cert.date).toLocaleDateString()"></span>
+                  </div>
+                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Expedido por: <span x-text="cert.issuer"></span>
+                  </p>
+                  <div class="mt-2 flex justify-end">
+                    <span class="inline-flex items-center text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                      Ver certificado
+                      <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                      </svg>
+                    </span>
+                  </div>
+                </a>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Proyectos -->
+        <template x-if="selectedTool?.projects?.length > 0">
+          <div>
+            <h4 class="text-lg font-semibold text-[#fdc700] mb-3">Proyectos</h4>
+            <div class="space-y-4">
+              <template x-for="proj in selectedTool?.projects" :key="proj.id">
+                <div class="overflow-hidden rounded-xl bg-white dark:bg-gray-700 shadow-md">
+                  <div class="md:flex">
+                    <template x-if="proj.image">
+                      <div class="md:shrink-0">
+                        <img
+                          class="h-48 w-full object-cover md:h-full md:w-48"
+                          x-bind:src="proj.image"
+                          x-bind:alt="proj.title"
+                        />
+                      </div>
+                    </template>
+                    <div class="p-6">
+                      <div class="mt-1 block text-lg leading-tight font-medium text-black dark:text-white">
+                        <span x-text="proj.title"></span>
+                      </div>
+                      <p class="mt-2 text-gray-500 dark:text-gray-300 line-clamp-3" x-text="proj.description"></p>
+                      <div class="mt-4 flex gap-3">
+                        <template x-if="proj.codeLink">
+                          <a 
+                            x-bind:href="proj.codeLink" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-[#fdc700] dark:hover:text-[#fdc700] transition-colors"
+                          >
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"></path>
+                            </svg>
+                            Código
+                          </a>
+                        </template>
+                        <template x-if="proj.PreviewLink">
+                          <a 
+                            x-bind:href="proj.PreviewLink" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-[#fdc700] dark:hover:text-[#fdc700] transition-colors"
+                          >
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            Demo
+                          </a>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Sin contenido relacionado -->
+        <template x-if="!selectedTool?.certificates?.length && !selectedTool?.projects?.length">
+          <p class="text-center text-gray-500 dark:text-gray-400 py-10">No hay certificados ni proyectos relacionados con esta herramienta.</p>
+        </template>
+      </div>
+
+      <!-- Modal footer -->
+      <div class="flex items-center justify-end p-4 md:p-5 border-t border-gray-200 dark:border-gray-700">
+        <button @click="closeModal()" class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
   /* Estilos para el scrollbar */
   .custom-scrollbar {
     scrollbar-width: thin;
@@ -89,6 +320,12 @@ const sections = categories.map((c, i) => ({
     background-color: rgba(107, 114, 128, 0.7);
   }
 
-  
+  /* Estilo para ocultar elementos con x-cloak antes de que Alpine.js se inicialice */
+  [x-cloak] { 
+    display: none !important; 
+  }
+  .-top-5 {
+    top: calc(var(--spacing) * 1.2) /* -1.25rem = -20px */;
+}
 </style>
 
