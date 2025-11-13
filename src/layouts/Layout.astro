@@ -27,17 +27,21 @@ const { title = "Hazielgmz", description = "Portafolio" } = Astro.props;
 	</head>
 	<body class="relative text-black dark:text-white">
 	
-<div class="absolute inset-0 z-[-2] min-h-screen w-full bg-[#0b0210] overflow-hidden">
-  <!-- Gradiente base -->
-  <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,0,182,0.15),rgba(17,24,39,1)_80%)]"></div>
+<div
+  class="absolute inset-0 z-[-2] min-h-screen w-full 
+  bg-gradient-to-br from-indigo-100 via-slate-100 to-blue-50
+  dark:from-indigo-900 dark:via-slate-900 dark:to-blue-900
 
-  <!-- Textura de partículas (puedes cambiar la imagen por otra textura si gustas) -->
-  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
+  before:content-[''] before:absolute before:inset-0 
+  before:bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.25),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(147,197,253,0.25),transparent_50%)]
+  dark:before:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.25),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.2),transparent_50%)]
+  
+  before:blur-3xl"
+></div>
 
-  <!-- Capas extra de brillo sutil -->
-  <div class="absolute top-0 left-1/4 w-[700px] h-[700px] rounded-full bg-gradient-to-tr from-pink-500 via-fuchsia-600 to-blue-500 opacity-10 blur-3xl"></div>
-  <div class="absolute bottom-0 right-1/3 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 opacity-10 blur-3xl"></div>
-</div>
+
+
+
 
 
 <style>
